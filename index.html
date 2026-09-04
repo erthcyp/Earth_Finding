@@ -1039,3 +1039,571 @@ GPT-4o           false refusal  4.13   hallucination 45.15   correct 52.59</code
         <span class="chip">judge ensemble</span>
       </div>
     </div>
+
+    <div class="pbody">
+      <div class="meta">
+        <div><span class="k">Multimodal</span><span class="v">711 + 811</span></div>
+        <div><span class="k">Parametric</span><span class="v">1,052 + 1,052</span></div>
+        <div><span class="k">Search</span><span class="v">890 + 994</span></div>
+        <div><span class="k">Grounding</span><span class="v">860 + 859</span></div>
+      </div>
+      <p>
+        A living leaderboard rather than a paper with a fixed dataset. It measures factual accuracy in four different
+        situations and rolls them into one FACTS Score. Every judgment is made by an automated judge model, and every
+        sub benchmark keeps half its prompts private so the leaderboard survives people training on it.
+      </p>
+      <p>
+        <strong>Where the idea came from.</strong> It is the direct successor to FACTS Grounding
+        (<a href="https://arxiv.org/abs/2501.03200">arXiv:2501.03200</a>, Jan 2025), which did one thing: give the
+        model a system instruction saying use only this document, a context document up to 32k tokens, and a request
+        requiring a long answer, then check whether the answer stays inside the document. The new paper generalises
+        that to four tasks, stating that "a comprehensive understanding of an LLM's factuality requires evaluating its
+        performance across a wider spectrum of tasks". The four are <strong>Multimodal</strong>,
+        <strong>Parametric</strong> (closed book, from memory), <strong>Search</strong>, and
+        <strong>Grounding v2</strong>.
+      </p>
+    </div>
+
+    <div class="blk">
+      <div class="bh"><span class="n">01</span>How it detects hallucination</div>
+      <div class="who"><b>Who does the detecting</b>An ensemble of LLM judges, guarded by a gate that throws out
+        answers which dodge the question before any grading happens.</div>
+
+      <p><strong>The grounding task, which is the core of the suite.</strong></p>
+      <ol class="steps">
+        <li>
+          <span class="st">The model is boxed in</span>
+          It receives a system instruction saying use only the provided context, a real web document of up to 32k
+          tokens from finance, technology, retail, medical or legal, and a request that cannot be answered in one line.
+        </li>
+        <li>
+          <span class="st">Phase one, eligibility</span>
+          A judge asks a question that has nothing to do with truth: does this response actually address what was
+          asked? Responses that do not are disqualified, and then counted as inaccurate.
+        </li>
+        <li>
+          <span class="st">Phase two, grounding</span>
+          For eligible responses only, judges check whether every claim in the response is supported by the document in
+          front of it. Two judges, Gemini 2.5 Flash and GPT-5, and their scores are averaged.
+        </li>
+      </ol>
+
+      <div class="eg">
+        <div class="mk">What phase one is actually stopping</div>
+        <p>
+          Give a model a medical document and ask it to summarise the treatment options. It replies:
+          <em>"This document discusses several important considerations regarding patient care. For advice specific to
+          your situation, please consult a qualified healthcare professional."</em>
+        </p>
+        <p>
+          Every claim in that reply is grounded. Nothing in it contradicts the document. A pure grounding judge gives it
+          <strong>100 percent</strong>. Phase one catches it, marks it ineligible, and it is scored as inaccurate. This
+          is the fourth appearance of the same structural fix in this survey, after TruthfulQA's informativeness,
+          HALoGEN's response ratio and HalluLens's false refusal rate. Every serious benchmark eventually has to build
+          one.
+        </p>
+      </div>
+
+      <div class="eg">
+        <div class="mk">Why more than one judge</div>
+        <p>
+          Models score their own output higher than other models' output. If Gemini alone judged this leaderboard,
+          Gemini would win it, and nobody outside Google would believe the ranking. FACTS Grounding v1 used three
+          judges from three different labs, Gemini 1.5 Pro, GPT-4o and Claude 3.5 Sonnet, and averaged them. v2 uses
+          two, Gemini 2.5 Flash and GPT-5, on the same reasoning.
+        </p>
+      </div>
+
+      <p><strong>The other three sub leaderboards.</strong></p>
+      <ul class="tight">
+        <li>
+          <strong>Multimodal.</strong> Humans write a rubric per image splitting the facts into essential and non
+          essential. A <em>Coverage</em> verdict checks the essential facts are present. A <em>No-Contradiction</em>
+          verdict checks nothing contradicts the rubric or the image itself. Only responses passing both count as
+          accurate. The autorater was validated against humans at macro F1 72.3 and 78.2.
+        </li>
+        <li>
+          <strong>Parametric.</strong> Closed book factoid QA, no document. Gemini-2.5-Pro grades three times and the
+          grades are averaged. Answers were chosen so as to exist in Wikipedia, on the assumption that Wikipedia is in
+          every model's pretraining mix. That is the same assumption HalluLens makes.
+        </li>
+        <li>
+          <strong>Search.</strong> The model may use a search API, standardised on Brave so that everyone gets the same
+          web. Gemini 2.0 Flash grades correct, incorrect or not attempted.
+        </li>
+      </ul>
+
+      <p>
+        <strong>The private half.</strong> Only a subset of prompts is released. The rest are held back and never
+        published, so training on the public half does not lift the private score. It is the low tech answer to the
+        contamination problem HalluLens solves with dynamic generation.
+      </p>
+    </div>
+
+    <div class="blk">
+      <div class="bh"><span class="n">02</span>Why it exists</div>
+      <p>
+        The stated gap is that factuality is not one skill. In the paper's words, models that excel at summarising a
+        provided document may struggle to answer factoid questions from memory, and the reverse. One number over one
+        task therefore misleads.
+      </p>
+      <p>
+        The living leaderboard argument is about shelf life. Held out prompts plus continuous new model submissions
+        mean the ranking stays meaningful after the public half has been absorbed into training corpora.
+      </p>
+    </div>
+
+    <div class="blk">
+      <div class="bh"><span class="n">03</span>What the output looks like</div>
+      <p>A grounding record is three parts:</p>
+<pre><code>system instruction   "Answer using only the provided context."
+context document     web sourced, up to 32k tokens
+                     finance, technology, retail, medical, legal
+user request         non trivial, requires a long form answer</code></pre>
+      <dl class="defs">
+        <dt>Accuracy</dt><dd>Percentage of correct responses.</dd>
+        <dt>Attempted accuracy</dt><dd>Accuracy counting only responses that were not hedged.</dd>
+        <dt>Hedging rate</dt><dd>Percentage of responses recorded as not attempted.</dd>
+        <dt>Final factuality score</dt><dd>The unadjusted score after ineligible responses are counted as inaccurate.</dd>
+        <dt>FACTS Score</dt><dd>Average accuracy across all four tasks, each averaged over its public and private sets.</dd>
+      </dl>
+      <div class="tscroll">
+        <table>
+          <thead><tr><th>Model</th><th>FACTS Score</th><th>Grounding</th><th>Multimodal</th><th>Parametric</th><th>Search</th></tr></thead>
+          <tbody>
+            <tr><td class="lead">Gemini 3 Pro</td><td><strong>68.8</strong></td><td>69.0</td><td>46.1</td><td>76.4</td><td>83.8</td></tr>
+            <tr><td class="lead">Gemini 2.5 Pro</td><td>62.1</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td class="lead">GPT-5</td><td>61.8</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td class="lead">Grok 4</td><td>53.6</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td class="lead">GPT o3</td><td>52.0</td><td></td><td></td><td></td><td></td></tr>
+            <tr><td class="lead">Claude 4.5 Opus</td><td>51.3</td><td></td><td></td><td></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Multimodal is the hardest column by a distance. No model exceeds 46.9 on it.</p>
+      <div class="note">
+        <div class="mk">What to borrow</div>
+        <p>
+          Two design ideas transfer directly. The eligibility phase, which stops a model gaming a metric by refusing to
+          commit, is the same problem our abstention handling solves, and FACTS gives us a citable precedent for
+          counting a disqualified response as inaccurate rather than dropping it. And the multi judge ensemble with a
+          stated reason, that models favour their own outputs, is the right way to justify our verifier choices to a
+          reviewer.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CRS -->
+<section id="crs">
+  <h2><span class="sn">06</span>Beyond Hallucinations (CRS)</h2>
+  <div class="paper">
+    <div class="phead">
+      <div class="ptitle"><h3>Beyond Hallucinations</h3><span class="yr">Dec 2025</span></div>
+      <p class="pfull">
+        A Composite Score for Measuring Reliability in Open-Source Large Language Models. Rohit Kumar Salla, Manoj
+        Saravanan, Shrikar Reddy Kota (Virginia Tech).
+        <a href="https://arxiv.org/abs/2512.24058">arXiv:2512.24058</a> and
+        <a href="https://github.com/rohitsalla/CRS">code</a>
+      </p>
+      <div class="chips">
+        <span class="chip warn">does not measure hallucination</span>
+        <span class="chip">metric framework, no new data</span>
+        <span class="chip">10 models, 5 QA datasets</span>
+      </div>
+    </div>
+
+    <div class="pbody">
+      <p>
+        Read the title, then read the paper, and they do not match. The paper states outright that hallucination
+        behaviour is not directly measured. What it proposes is a single 0 to 1 reliability number built from three
+        things, none of which requires knowing whether an answer is true.
+      </p>
+      <p>
+        <strong>Where the idea came from.</strong> Entirely derived. No new data, no new component metric. It scores
+        existing datasets (TriviaQA, Natural Questions, SQuAD 2.0, MedQA, ARC) with existing tools (ECE, Brier, NLL,
+        AUROC, MC Dropout, deep ensembles, temperature scaling, isotonic regression). The contribution is the weighting
+        scheme and the deployment tiers. Its target is accuracy centric benchmarking such as GLUE and SuperGLUE, and
+        its thesis is that high accuracy does not imply reliability.
+      </p>
+    </div>
+
+    <div class="blk">
+      <div class="bh"><span class="n">01</span>How it measures</div>
+      <div class="who"><b>Who does the detecting</b>Nobody. Truth is never checked. The model is scored on how well it
+        knows itself, not on whether it is right.</div>
+
+      <p>Three dimensions, each normalised to 0 and 1, then averaged.</p>
+
+      <dl class="defs">
+        <dt>C, calibration. Does its confidence mean anything?</dt>
+        <dd>
+          Take every answer where the model said it was 90 percent sure. Is it actually right about 90 percent of the
+          time? Bucket all the answers by stated confidence, compare confidence to real accuracy inside each bucket,
+          and average the gaps. That average gap is <strong>Expected Calibration Error</strong>. A model that says 90
+          percent and is right 60 percent of the time is overconfident, and overconfidence is dangerous in a way that
+          being wrong is not, because it removes the user's warning signal.
+        </dd>
+        <dt>R, robustness. Does it survive a reworded question?</dt>
+        <dd>
+          Ask the same question three broken ways and see how much accuracy is left. Swap characters in 5 percent of
+          tokens, which simulates typos. Push the question through MarianMT and back, which paraphrases it. Run
+          TextFooler, which swaps in synonyms chosen specifically to break the model. R is the fraction of clean
+          accuracy that survives.
+        </dd>
+        <dt>U, uncertainty quality. Can it tell its own right answers from its wrong ones?</dt>
+        <dd>
+          Get an uncertainty number for every answer, either by running the model ten times with dropout on and seeing
+          how much it wobbles, or by asking three models and measuring disagreement. Then ask whether that number
+          separates the correct answers from the incorrect ones, which is what <strong>AUROC</strong> measures.
+        </dd>
+      </dl>
+
+      <div class="eg">
+        <div class="mk">AUROC in one sentence</div>
+        <p>
+          Pick one answer the model got right and one it got wrong, at random. AUROC is the probability that the wrong
+          one was assigned higher uncertainty. 0.5 means the uncertainty score is a coin flip and tells you nothing.
+          1.0 means it is a perfect early warning system. The paper's best model reaches 0.882 and its worst 0.716.
+        </p>
+      </div>
+
+<pre><code>CRS = αC + βR + γU        α + β + γ = 1,  default α = β = γ = 1/3
+
+C = max(0, 1 - ECE_model / ECE_max)          calibration
+R = 1 - (avg accuracy drop / avg clean acc)  robustness
+U = (AUROC - 0.5) / 0.5                      uncertainty quality</code></pre>
+
+      <p>
+        Then a tier. 0.8 and above is High, deployable with minimal supervision. 0.6 to 0.8 is Moderate, needs human
+        oversight. Below 0.6 is Limited.
+      </p>
+      <p>
+        Notice what is missing from all three formulas: no reference answer is compared, no corpus is searched, no
+        claim is verified. Correctness enters only as a binary flag used to compute the other quantities. That is why
+        the paper can say hallucination is not directly measured, and why it should not sit in a hallucination
+        benchmark table without a footnote.
+      </p>
+    </div>
+
+    <div class="blk">
+      <div class="bh"><span class="n">02</span>Why it exists</div>
+      <p>
+        The argument is about deployment risk rather than about truth. A hallucination rate tells you one failure mode
+        of one output type. Whether you can safely put a model in front of a doctor depends jointly on whether its
+        confidence means anything, whether it falls apart when the input is worded differently, and whether it can
+        signal its own errors. One number plus a tier is pitched as a gate for that decision.
+      </p>
+    </div>
+
+    <div class="blk">
+      <div class="bh"><span class="n">03</span>What the output looks like</div>
+      <p>Ten rows, one per model, columns C, R, U, CRS, Tier. The top and bottom of the table:</p>
+      <div class="tscroll">
+        <table>
+          <thead><tr><th>Model</th><th>C</th><th>R</th><th>U</th><th>CRS</th><th>Tier</th></tr></thead>
+          <tbody>
+            <tr><td class="lead">Mistral-8x22B</td><td>0.91</td><td>0.78</td><td>0.73</td><td><strong>0.81</strong></td><td>High</td></tr>
+            <tr><td class="lead">Qwen3</td><td>0.84</td><td>0.74</td><td>0.70</td><td>0.76</td><td>Moderate</td></tr>
+            <tr><td class="lead">DeepSeek R1 0528</td><td>0.87</td><td>0.76</td><td>0.63</td><td>0.75</td><td>Moderate</td></tr>
+            <tr><td class="lead">Gemma 2</td><td>0.71</td><td>0.68</td><td>0.71</td><td>0.70</td><td>Moderate</td></tr>
+            <tr><td class="lead">LLaMA-3-7B</td><td>0.16</td><td>0.54</td><td>0.44</td><td>0.57</td><td>Low</td></tr>
+            <tr><td class="lead">Falcon-7B</td><td>0.00</td><td>0.51</td><td>0.41</td><td><strong>0.52</strong></td><td>Low</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Supporting tables give ECE, Brier and NLL, the AUROC comparison where ensembles win for all ten models, and a
+        calibration intervention table where isotonic regression beats temperature scaling everywhere. Adversarial
+        inputs cause the largest degradation, average accuracy drop 11.2 percent.
+      </p>
+      <div class="note">
+        <div class="mk">Handle with care</div>
+        <p>
+          The model list contradicts itself, calling the same model Qwen3-22B in the setup and Qwen3-235B in the table.
+          Dataset sizes and sampling are never stated. ECE_max appears in the formula but is never given a number. No
+          raw accuracy is reported per model or per dataset, and there is no per dataset breakdown at all. The weights
+          are described by the authors themselves as heuristic. Cite it for the framing, which is that reliability is
+          more than a hallucination rate, and do not lean on the numbers.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HALLUSCAN -->
+<section id="halluscan">
+  <h2><span class="sn">07</span>HalluScan</h2>
+  <div class="paper">
+    <div class="phead">
+      <div class="ptitle"><h3>HalluScan</h3><span class="yr">May 2026</span></div>
+      <p class="pfull">
+        A Systematic Benchmark for Detecting and Mitigating Hallucinations in Instruction-Following LLMs. Ahmed Cherif
+        (Sofrecom Tunisia, Orange Innovation). <a href="https://arxiv.org/abs/2605.02443">arXiv:2605.02443</a>
+      </p>
+      <div class="chips">
+        <span class="chip warn">evaluation set is 24 items</span>
+        <span class="chip">compares detectors, not models</span>
+        <span class="chip">72 configurations</span>
+        <span class="chip">single author</span>
+      </div>
+    </div>
+
+    <div class="pbody">
+      <div class="meta">
+        <div><span class="k">QA pairs</span><span class="v">24</span></div>
+        <div><span class="k">Configurations</span><span class="v">72</span></div>
+        <div><span class="k">Detectors</span><span class="v">6</span></div>
+        <div><span class="k">Best method</span><span class="v">NLI, AUROC 0.88</span></div>
+      </div>
+      <p>
+        This one compares hallucination <em>detectors</em> rather than measuring how much a model hallucinates. Six
+        detection methods run across four open weight models and three question domains, and each combination is scored
+        on how well it discriminates, how well calibrated it is, and how long it takes.
+      </p>
+      <p>
+        <strong>Where the idea came from.</strong> Nothing here is new except the comparison grid. It writes no
+        questions: eight come from TruthfulQA for the scientific domain, eight from Natural Questions for open domain
+        QA, eight from ARC-Challenge for commonsense. All six detection methods are prior work.
+      </p>
+    </div>
+
+    <div class="blk">
+      <div class="bh"><span class="n">01</span>How it detects hallucination</div>
+      <div class="who"><b>Who does the detecting</b>Six competing methods, each producing a score, all graded against a
+        binary label that comes from the borrowed dataset's answer key plus expert annotation.</div>
+
+      <p>The grid is 6 methods × 4 models × 3 domains = 72 configurations. The six methods split into two philosophies.</p>
+
+      <p><strong>Ask the model about itself. No external knowledge, works on any model, cheap.</strong></p>
+      <dl class="defs">
+        <dt>Self-Consistency</dt>
+        <dd>Sample two answers, extract the claims from each, and take the Jaccard similarity of the two claim sets. Low overlap means the model is not settled on an answer.</dd>
+        <dt>Self-Evaluation</dt>
+        <dd>Ask the model to rate its own claims from 1 to 10. Simple, and it works about as well as guessing.</dd>
+        <dt>Semantic Entropy</dt>
+        <dd>
+          The interesting one. Sample many answers, then use an NLI model to group answers that <em>mean</em> the same
+          thing even when worded differently, and compute entropy over those groups. If everything lands in one group,
+          entropy is 0 and the model is sure. If it scatters into many groups, the model is inventing a different
+          answer each time. Grouping by meaning rather than by wording is the whole point: plain token entropy would
+          flag "Paris" and "the city of Paris" as disagreement.
+        </dd>
+      </dl>
+
+      <p><strong>Check against something outside. Needs a reference, slower, more accurate.</strong></p>
+      <dl class="defs">
+        <dt>NLI Verification</dt>
+        <dd>
+          DeBERTa-v3-large fine tuned on MNLI decides whether the reference text entails the model's answer.
+          <em>Entailment</em> means: if the reference is true, the answer must also be true. This is the winner in the
+          paper, and it wins because it is the only one actually looking at ground truth.
+        </dd>
+        <dt>Retrieval-Augmented Verification</dt>
+        <dd>Retrieve supporting documents first, then run the same NLI check against what came back.</dd>
+        <dt>LLM-as-Judge</dt>
+        <dd>Hand the answer to a stronger model such as GPT-4 and ask whether it is accurate.</dd>
+      </dl>
+
+      <p>
+        On the title. "Instruction following" describes the <em>models</em>, which are instruction tuned. Instruction
+        hallucination is one of three types in the paper's taxonomy, alongside factual and faithfulness hallucination,
+        but it is not the axis being measured. The questions are ordinary factual QA.
+      </p>
+    </div>
+
+    <div class="blk">
+      <div class="bh"><span class="n">02</span>Why it exists</div>
+      <p>
+        Detection methods are usually evaluated in isolation, on one model, in one domain, so a practitioner has no
+        basis for choosing between them or knowing what each one costs. The grid is meant to answer that, and the
+        routing scheme addresses the cost side by reserving expensive detectors for queries predicted to be risky.
+      </p>
+    </div>
+
+    <div class="blk">
+      <div class="bh"><span class="n">03</span>What the output looks like</div>
+      <p>The main table ranks configurations by AUROC. Averaged by method:</p>
+      <div class="tscroll">
+        <table>
+          <thead><tr><th>Method</th><th>Mean AUROC</th><th>ECE</th><th>Latency per query</th></tr></thead>
+          <tbody>
+            <tr><td class="lead">NLI Verification</td><td><strong>0.88</strong></td><td>0.185</td><td>~18.5 s</td></tr>
+            <tr><td class="lead">Retrieval-Augmented Verification</td><td>0.66</td><td></td><td>~18.9 s</td></tr>
+            <tr><td class="lead">Self-Evaluation</td><td>0.57</td><td></td><td>13.8 s</td></tr>
+            <tr><td class="lead">Self-Consistency</td><td>0.56</td><td></td><td>&lt; 1 ms</td></tr>
+            <tr><td class="lead">LLM-as-Judge</td><td>0.55</td><td>0.466</td><td></td></tr>
+            <tr><td class="lead">Semantic Entropy</td><td>0.45</td><td></td><td>&lt; 1 ms</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        The shape of that table is the paper's real finding, and it is a shape rather than a number: the methods that
+        look at ground truth beat the methods that only ask the model about itself, and they cost four orders of
+        magnitude more time to run. Everything below NLI is close enough to 0.5 to be within noise of guessing.
+      </p>
+      <dl class="defs">
+        <dt>HalluScore</dt>
+        <dd>The paper's own composite, (1 - ε_f)^0.4 × (σ_s)^0.3 × (1 - φ)^0.3, where ε_f is factual error rate, σ_s is semantic coherence and φ is fabrication rate. It correlates with human judgment at Pearson r 0.41, which is a weak correlation and is reported as such.</dd>
+      </dl>
+      <div class="note">
+        <div class="mk">The number that changes how you read this paper</div>
+        <p>
+          The evaluation set is <strong>24 question answer pairs</strong>, eight per domain. The 72 is a count of
+          configurations, not of data. Every AUROC in the paper, including the two configurations reported as a perfect
+          1.00, is computed over eight items.
+        </p>
+        <p>
+          Consider what a perfect score over eight items means. If a domain had four hallucinated and four clean items,
+          a detector that scored them at random would sort them perfectly by chance about one time in seventy. Across
+          72 configurations you would expect roughly one perfect score from luck alone. The paper reports two. That is
+          our own arithmetic and not the paper's, but it is the right way to read a 1.00 here.
+        </p>
+        <p>
+          The author is straightforward about it: the small sample size limits statistical power, and the specific
+          numerical values should be interpreted with caution. Also worth flagging so nobody in the team conflates
+          them, HalluScan's internal metric is called HalluScore, which is a different artifact from the separate paper
+          titled HalluScore (arXiv:2605.17007).
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TERMS -->
+<section id="terms">
+  <h2><span class="sn">08</span>Terms that keep coming back</h2>
+  <p class="lede">
+    Six things that appear in four or more of the seven papers. Worth knowing once rather than re-deriving each time.
+  </p>
+
+  <div class="paper"><div class="blk" style="border-top:none">
+    <dl class="defs">
+      <dt>Atomic claim decomposition</dt>
+      <dd>
+        Splitting a generated paragraph into the smallest pieces that can be individually true or false, then checking
+        each one. Used by HALoGEN, HalluLens LongWiki and FACTS. It matters because a response level judgment loses
+        information: an answer with nine good facts and one fabricated citation is not simply "wrong".
+      </dd>
+
+      <dt>LLM as judge</dt>
+      <dd>
+        Using one model to grade another's output. Started with TruthfulQA's fine tuned GPT-judge and is now everywhere.
+        Two known weaknesses that these papers manage explicitly. Models prefer their own outputs, which FACTS handles
+        with a multi lab ensemble. And judges are much better at yes or no questions than at classification, which
+        DiaHalu demonstrates when subtype F1 collapses to single digits.
+      </dd>
+
+      <dt>NLI, natural language inference</dt>
+      <dd>
+        A model that takes two pieces of text and says whether the first entails the second, contradicts it, or neither.
+        Entailment means: if the first is true, the second must be true. It is the workhorse behind claim verification
+        in HalluLens, semantic clustering in HalluScan and the strongest detector in that paper's comparison.
+      </dd>
+
+      <dt>Calibration and ECE</dt>
+      <dd>
+        Calibration asks whether stated confidence matches real accuracy. Expected Calibration Error is the average gap,
+        computed by bucketing predictions by confidence and comparing each bucket's confidence to its accuracy. Central
+        to Beyond Hallucinations, reported by HalluScan. Low ECE with low accuracy is still a usable model, because the
+        user is warned. High accuracy with high ECE is the dangerous combination.
+      </dd>
+
+      <dt>AUROC</dt>
+      <dd>
+        Pick one positive and one negative item at random. AUROC is the probability the model scores the positive one
+        higher. 0.5 is a coin flip, 1.0 is perfect. It is the standard way to score a detector because it does not
+        depend on where you set the threshold.
+      </dd>
+
+      <dt>Inter-annotator agreement, Fleiss and Cohen κ</dt>
+      <dd>
+        How much human labellers agree, after subtracting chance agreement.
+        κ = (Po - Pe) / (1 - Pe), where Po is observed agreement and Pe is agreement expected by chance. Above 0.81 is
+        almost perfect, 0.61 to 0.80 substantial. Cohen's version is for exactly two fixed annotators, Fleiss allows any
+        number. Any benchmark whose labels are human made has to report this or its numbers cannot be trusted.
+      </dd>
+
+      <dt>Contamination</dt>
+      <dd>
+        A published benchmark ends up inside the next model's training data, so a high score reflects memorisation
+        rather than skill. Two fixes appear here. HalluLens regenerates prompts from source corpora at run time so there
+        is no fixed file to memorise. FACTS keeps half its prompts private and never publishes them.
+      </dd>
+    </dl>
+  </div></div>
+</section>
+
+<!-- TAKEAWAY -->
+<section id="takeaway">
+  <h2><span class="sn">09</span>What this means for HalluTrace</h2>
+  <p class="lede">
+    Seven papers, five years, and one field that agrees on the question it is not asking.
+  </p>
+
+  <p>
+    Line up what each paper compares the output against and the whole set collapses into one shape. TruthfulQA compares
+    against reference answers a human wrote. DiaHalu compares against labels a human assigned. HALoGEN compares against
+    an authoritative index. HalluLens compares against Wikipedia. FACTS compares against a supplied document, an image
+    rubric or a search result. HalluScan compares against a borrowed dataset's answer key. Beyond Hallucinations
+    compares against nothing at all and measures the model's self knowledge instead.
+  </p>
+  <p>
+    Every one of those is a comparison to something <strong>outside</strong> the model. None of them asks what was
+    <strong>inside</strong> it. That question is the only one that tells you where to spend effort, because a fact the
+    corpus contained and the model failed to recall is a retrieval problem, a mistake the corpus itself contained is a
+    data cleaning problem, and a fact that was never there at all is an abstention problem. Three different teams, three
+    different budgets, and right now no measured basis for splitting the work between them.
+  </p>
+  <p>
+    Two of the seven make the point for us better than we could. <strong>HALoGEN</strong> defines its whole taxonomy by
+    relationship to pretraining data, shows that up to 72 percent of hallucinated code packages sit verbatim in the
+    corpus, and then leaves the analysis as a case study on a subset with no descendants in the literature.
+    <strong>HalluLens</strong> defines extrinsic hallucination as inconsistency with training data and, in the next
+    sentence, substitutes Wikipedia because training data is vast and opaque. The field knows what the right measurement
+    is. It has ruled it out as impractical.
+  </p>
+  <p>
+    For five models it is not impractical, because the corpus is published and indexed. That is the project.
+  </p>
+
+  <div class="note">
+    <div class="mk">Four things from this reading that go straight into our methodology</div>
+    <p>
+      <strong>1.</strong> Every serious benchmark builds an anti abstention mechanism, and they all built a different
+      one: informativeness, response ratio, false refusal rate, the eligibility phase. Ours needs one, and FACTS gives
+      us the cleanest precedent, which is to disqualify and count as inaccurate rather than to drop.
+    </p>
+    <p>
+      <strong>2.</strong> DiaHalu's subtype numbers, 5.71 and 4.65 micro F1 for the two hardest classes, are the
+      published evidence for why we decide axis 1 by lookup rather than by judge.
+    </p>
+    <p>
+      <strong>3.</strong> HALoGEN's precision over recall design means its rates are lower bounds, and it says so. We
+      report NOT_IN_DATA as an upper bound for the mirror image reason, and framing it the same way makes the choice
+      read as standard practice rather than as a hedge.
+    </p>
+    <p>
+      <strong>4.</strong> NonExistentRefusal shows that the cheapest ground truth is the ground truth you construct
+      rather than verify. Worth keeping in mind for the should-refuse task.
+    </p>
+  </div>
+</section>
+
+<footer>
+  Sources read directly: TruthfulQA <a href="https://arxiv.org/abs/2109.07958">2109.07958</a>,
+  DiaHalu <a href="https://arxiv.org/abs/2403.00896">2403.00896</a>,
+  HALoGEN <a href="https://arxiv.org/abs/2501.08292">2501.08292</a>,
+  HalluLens <a href="https://arxiv.org/abs/2504.17550">2504.17550</a>,
+  FACTS Leaderboard <a href="https://arxiv.org/abs/2512.10791">2512.10791</a> and its parent FACTS Grounding
+  <a href="https://arxiv.org/abs/2501.03200">2501.03200</a>,
+  Beyond Hallucinations <a href="https://arxiv.org/abs/2512.24058">2512.24058</a>,
+  HalluScan <a href="https://arxiv.org/abs/2605.02443">2605.02443</a>.
+  Figures are quoted from the papers themselves. The chance calculation in the HalluScan note is our own. Spot check
+  any number against the PDF before it goes into the paper.
+</footer>
+
+</div>
+</body>
+</html>
